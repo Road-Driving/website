@@ -1,3 +1,5 @@
+<!-- src/views/Story.vue -->
+
 <template>
   <main class="story-page">
     <section class="story-wrap">
@@ -11,22 +13,114 @@
         </p>
       </div>
 
-      <div class="episode-list">
-        <RouterLink
-          v-for="episode in episodes"
-          :key="episode.id"
-          :to="episode.link"
-          class="episode-item"
+      <nav class="episode-pagination top">
+        <button
+          v-if="hasPrev"
+          type="button"
+          class="pagination-link"
+          @click="movePrev"
         >
-          <div class="episode-number">
-            {{ episode.episode }}
-          </div>
+          이전
+        </button>
 
-          <h2 class="episode-title">
-            {{ episode.title }}
-          </h2>
-        </RouterLink>
-      </div>
+        <span
+          v-else
+          class="pagination-disabled"
+        >
+          이전
+        </span>
+
+        <button
+          v-for="page in pages"
+          :key="page.episode"
+          type="button"
+          class="pagination-link"
+          :class="{ active: page.episode === currentEpisode.episode }"
+          @click="moveToEpisode(page.episode)"
+        >
+          {{ page.label }}
+        </button>
+
+        <button
+          v-if="hasNext"
+          type="button"
+          class="pagination-link"
+          @click="moveNext"
+        >
+          다음
+        </button>
+
+        <span
+          v-else
+          class="pagination-disabled"
+        >
+          다음
+        </span>
+      </nav>
+
+      <article class="episode-content">
+        <p class="episode-label">
+          {{ currentEpisode.label }}
+        </p>
+
+        <h2 class="episode-title">
+          {{ currentEpisode.title }}
+        </h2>
+
+        <div class="episode-body">
+          <p
+            v-for="paragraph in paragraphs"
+            :key="paragraph"
+          >
+            {{ paragraph }}
+          </p>
+        </div>
+      </article>
+
+      <nav class="episode-pagination bottom">
+        <button
+          v-if="hasPrev"
+          type="button"
+          class="pagination-link"
+          @click="movePrev"
+        >
+          이전
+        </button>
+
+        <span
+          v-else
+          class="pagination-disabled"
+        >
+          이전
+        </span>
+
+        <button
+          v-for="page in pages"
+          :key="`bottom-${page.episode}`"
+          type="button"
+          class="pagination-link"
+          :class="{ active: page.episode === currentEpisode.episode }"
+          @click="moveToEpisode(page.episode)"
+        >
+          {{ page.label }}
+        </button>
+
+        <button
+          v-if="hasNext"
+          type="button"
+          class="pagination-link"
+          @click="moveNext"
+        >
+          다음
+        </button>
+
+        <span
+          v-else
+          class="pagination-disabled"
+        >
+          다음
+        </span>
+      </nav>
 
       <p class="story-note">
         실제 이야기와 여러 소재들을 바탕으로 재구성된 이야기입니다.
@@ -37,20 +131,85 @@
 </template>
 
 <script setup>
-const episodes = [
-  {
-    id: 1,
-    episode: "에필로그",
-    title: "길 위의 기록",
-    link: "/story",
-  },
-  {
-    id: 2,
-    episode: "1화",
-    title: "첫 번째 이야기",
-    link: "/story",
-  },
-]
+import { computed, ref } from "vue";
+import { stories } from "../data/stories.js";
+
+const currentEpisodeNumber = ref(stories[0]?.episode ?? 0);
+
+const currentEpisode = computed(() => {
+  return stories.find((story) => story.episode === currentEpisodeNumber.value) ?? stories[0];
+});
+
+const currentIndex = computed(() => {
+  return stories.findIndex((story) => story.episode === currentEpisodeNumber.value);
+});
+
+const hasPrev = computed(() => currentIndex.value > 0);
+
+const hasNext = computed(() => {
+  return currentIndex.value >= 0 && currentIndex.value < stories.length - 1;
+});
+
+const pages = computed(() => {
+  const maxVisible = 8;
+  const half = Math.floor(maxVisible / 2);
+
+  let start = currentIndex.value - half;
+  let end = start + maxVisible;
+
+  if (start < 0) {
+    start = 0;
+    end = maxVisible;
+  }
+
+  if (end > stories.length) {
+    end = stories.length;
+    start = Math.max(0, end - maxVisible);
+  }
+
+  return stories.slice(start, end).map((story) => {
+    return {
+      episode: story.episode,
+      label: story.episode === 0
+        ? "에필로그"
+        : `${story.episode}화`,
+    };
+  });
+});
+
+const paragraphs = computed(() => {
+  return currentEpisode.value.content
+    .trim()
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+});
+
+function scrollToTop() {
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
+}
+
+function moveToEpisode(episodeNumber) {
+  currentEpisodeNumber.value = episodeNumber;
+  scrollToTop();
+}
+
+function movePrev() {
+  if (!hasPrev.value) return;
+
+  currentEpisodeNumber.value = stories[currentIndex.value - 1].episode;
+  scrollToTop();
+}
+
+function moveNext() {
+  if (!hasNext.value) return;
+
+  currentEpisodeNumber.value = stories[currentIndex.value + 1].episode;
+  scrollToTop();
+}
 </script>
 
 <style scoped>
@@ -71,9 +230,7 @@ const episodes = [
 
 .story-main-title {
   margin: 0;
-
   color: #f2f4f8;
-
   font-size: clamp(26px, 4vw, 36px);
   line-height: 1.15;
   letter-spacing: -0.04em;
@@ -81,56 +238,112 @@ const episodes = [
 
 .story-sub-title {
   margin: 8px 0 0;
-
   color: #aeb6c4;
-
   font-size: 15px;
   line-height: 1.6;
 }
 
-.episode-list {
+.episode-pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 14px 0;
+
   border-top: 1px solid #242a35;
-}
-
-.episode-item {
-  display: grid;
-  grid-template-columns: 180px 1fr;
-  gap: 20px;
-
-  padding: 16px 0;
-
   border-bottom: 1px solid #242a35;
 
+  overflow-x: auto;
+}
+
+.episode-pagination.bottom {
+  margin-top: 24px;
+}
+
+.pagination-link,
+.pagination-disabled {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 44px;
+  height: 32px;
+
+  padding: 0 12px;
+
+  border: 1px solid #2a303b;
+  border-radius: 999px;
+
+  color: #8d96a5;
+  background: transparent;
+
+  font-size: 12px;
+  font-weight: 600;
   text-decoration: none;
 
+  white-space: nowrap;
+}
+
+.pagination-link {
+  cursor: pointer;
+
   transition:
-    padding-left 0.2s ease,
-    color 0.2s ease;
+    border-color 0.2s ease,
+    color 0.2s ease,
+    background 0.2s ease;
 }
 
-.episode-item:hover {
-  padding-left: 6px;
-}
-
-.episode-number {
+.pagination-link:hover {
+  border-color: #7aa2ff;
   color: #7aa2ff;
+}
 
+.pagination-link.active {
+  border-color: #7aa2ff;
+  background: #7aa2ff;
+  color: #0f1115;
+}
+
+.pagination-disabled {
+  opacity: 0.35;
+}
+
+.episode-content {
+  padding: 28px 0 0;
+}
+
+.episode-label {
+  margin: 0 0 8px;
+  color: #7aa2ff;
   font-size: 13px;
   letter-spacing: 0.08em;
 }
 
 .episode-title {
   margin: 0;
-
   color: #f2f4f8;
+  font-size: clamp(26px, 4vw, 38px);
+  line-height: 1.2;
+  letter-spacing: -0.04em;
+}
 
-  font-size: 22px;
-  line-height: 1.25;
-  letter-spacing: -0.03em;
+.episode-body {
+  max-width: 760px;
+  margin-top: 24px;
+}
+
+.episode-body p {
+  margin: 0 0 22px;
+
+  color: #d2d7df;
+
+  font-size: 17px;
+  line-height: 2;
+  word-break: keep-all;
 }
 
 .story-note {
-  margin: 14px 4px 0;
+  margin: 18px 4px 0;
 
   color: #6f7785;
 
@@ -151,15 +364,33 @@ const episodes = [
     font-size: 14px;
   }
 
-  .episode-item {
-    grid-template-columns: 1fr;
+  .episode-pagination {
     gap: 6px;
+    padding: 12px 0;
+  }
 
-    padding: 14px 0;
+  .pagination-link,
+  .pagination-disabled {
+    min-width: 40px;
+    height: 30px;
+    padding: 0 10px;
+  }
+
+  .episode-content {
+    padding-top: 24px;
   }
 
   .episode-title {
-    font-size: 20px;
+    font-size: 28px;
+  }
+
+  .episode-body {
+    margin-top: 20px;
+  }
+
+  .episode-body p {
+    font-size: 16px;
+    line-height: 1.9;
   }
 }
 </style>

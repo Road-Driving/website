@@ -1,4 +1,5 @@
 <!-- src/components/home/RecentStories.vue -->
+
 <template>
   <section class="story-records">
     <div class="story-header">
@@ -13,20 +14,40 @@
 
     <div class="story-list">
       <RouterLink
-        v-for="story in stories"
-        :key="story.id"
+        v-if="latestStory"
         to="/story"
-        class="story-item"
+        class="story-link"
       >
-        <div class="story-episode">
-          {{ story.episode }}
-        </div>
+        <span class="story-label">
+          최신 회차
+        </span>
 
-        <h2 class="story-title">
-          {{ story.title }}
-        </h2>
+        <span class="story-title">
+          {{ latestStory.episode }}화
+        </span>
+      </RouterLink>
+
+      <RouterLink
+        v-if="epilogueStory"
+        to="/story"
+        class="story-link"
+      >
+        <span class="story-label">
+          에필로그
+        </span>
+
+        <span class="story-title">
+          {{ epilogueStory.title }}
+        </span>
       </RouterLink>
     </div>
+
+    <RouterLink
+      to="/story"
+      class="all-story-link"
+    >
+      전체 회차 보기 →
+    </RouterLink>
 
     <p class="story-note">
       실제 이야기와 여러 소재들을 바탕으로 재구성된 이야기입니다.
@@ -38,25 +59,24 @@
 </template>
 
 <script setup>
-const stories = [
-  {
-    id: 1,
-    episode: "에필로그",
-    title: "길 위의 기록",
-  },
-  {
-    id: 2,
-    episode: "1화",
-    title: "첫 번째 이야기",
-  },
-]
+import { computed } from "vue";
+import { stories } from "../../data/stories.js";
+
+const latestStory = computed(() => {
+  return stories
+    .filter((story) => story.episode > 0)
+    .at(-1);
+});
+
+const epilogueStory = computed(() => {
+  return stories.find((story) => story.episode === 0);
+});
 </script>
 
 <style scoped>
 .story-records {
   max-width: 1080px;
   margin: 0 auto;
-
   padding: 18px 24px 16px;
 }
 
@@ -66,9 +86,7 @@ const stories = [
 
 .story-main-title {
   margin: 0;
-
   color: #f2f4f8;
-
   font-size: clamp(26px, 4vw, 36px);
   line-height: 1.15;
   letter-spacing: -0.04em;
@@ -76,9 +94,7 @@ const stories = [
 
 .story-sub-title {
   margin: 8px 0 0;
-
   color: #aeb6c4;
-
   font-size: 15px;
   line-height: 1.6;
 }
@@ -87,7 +103,7 @@ const stories = [
   border-top: 1px solid #242a35;
 }
 
-.story-item {
+.story-link {
   display: grid;
   grid-template-columns: 180px 1fr;
   gap: 20px;
@@ -99,29 +115,42 @@ const stories = [
   text-decoration: none;
 
   transition:
-    background 0.2s ease,
-    padding-left 0.2s ease;
+    padding-left 0.2s ease,
+    background 0.2s ease;
 }
 
-.story-item:hover {
+.story-link:hover {
   padding-left: 6px;
 }
 
-.story-episode {
+.story-label {
   color: #7aa2ff;
-
   font-size: 13px;
   letter-spacing: 0.08em;
 }
 
 .story-title {
-  margin: 0;
-
   color: #f2f4f8;
-
   font-size: 22px;
   line-height: 1.25;
   letter-spacing: -0.03em;
+}
+
+.all-story-link {
+  display: inline-flex;
+  margin-top: 14px;
+
+  color: #aeb6c4;
+
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+
+  transition: color 0.2s ease;
+}
+
+.all-story-link:hover {
+  color: #7aa2ff;
 }
 
 .story-note {
@@ -136,7 +165,6 @@ const stories = [
 .story-divider {
   width: 100%;
   height: 1px;
-
   margin-top: 14px;
 
   background: linear-gradient(
@@ -160,7 +188,7 @@ const stories = [
     font-size: 14px;
   }
 
-  .story-item {
+  .story-link {
     grid-template-columns: 1fr;
     gap: 6px;
 
@@ -169,10 +197,6 @@ const stories = [
 
   .story-title {
     font-size: 20px;
-  }
-
-  .story-divider {
-    margin-top: 12px;
   }
 }
 </style>
