@@ -15,7 +15,7 @@
     <div class="story-list">
       <RouterLink
         v-if="latestStory"
-        to="/story"
+        :to="`/story?episode=${latestStory.episode}`"
         class="story-link"
       >
         <span class="story-label">
@@ -29,7 +29,7 @@
 
       <RouterLink
         v-if="epilogueStory"
-        to="/story"
+        :to="`/story?episode=${epilogueStory.episode}`"
         class="story-link"
       >
         <span class="story-label">
@@ -107,16 +107,10 @@ const epilogueStory = computed(() => {
   display: grid;
   grid-template-columns: 180px 1fr;
   gap: 20px;
-
   padding: 16px 0;
-
   border-bottom: 1px solid #242a35;
-
   text-decoration: none;
-
-  transition:
-    padding-left 0.2s ease,
-    background 0.2s ease;
+  transition: padding-left 0.2s ease;
 }
 
 .story-link:hover {
@@ -139,13 +133,10 @@ const epilogueStory = computed(() => {
 .all-story-link {
   display: inline-flex;
   margin-top: 14px;
-
   color: #aeb6c4;
-
   font-size: 13px;
   font-weight: 600;
   text-decoration: none;
-
   transition: color 0.2s ease;
 }
 
@@ -155,9 +146,7 @@ const epilogueStory = computed(() => {
 
 .story-note {
   margin: 14px 4px 0;
-
   color: #6f7785;
-
   font-size: 13px;
   line-height: 1.7;
 }
@@ -166,7 +155,6 @@ const epilogueStory = computed(() => {
   width: 100%;
   height: 1px;
   margin-top: 14px;
-
   background: linear-gradient(
     to right,
     transparent,
@@ -191,7 +179,6 @@ const epilogueStory = computed(() => {
   .story-link {
     grid-template-columns: 1fr;
     gap: 6px;
-
     padding: 14px 0;
   }
 

@@ -131,20 +131,51 @@
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { stories } from "../data/stories.js";
 
-const currentEpisodeNumber = ref(stories[0]?.episode ?? 0);
+const route = useRoute();
+const router = useRouter();
+
+function getEpisodeFromQuery() {
+  const episodeNumber = Number(route.query.episode);
+
+  if (Number.isNaN(episodeNumber)) {
+    return stories[0]?.episode ?? 0;
+  }
+
+  const matchedStory = stories.find((story) => {
+    return story.episode === episodeNumber;
+  });
+
+  return matchedStory?.episode ?? stories[0]?.episode ?? 0;
+}
+
+const currentEpisodeNumber = ref(getEpisodeFromQuery());
+
+watch(
+  () => route.query.episode,
+  () => {
+    currentEpisodeNumber.value = getEpisodeFromQuery();
+  }
+);
 
 const currentEpisode = computed(() => {
-  return stories.find((story) => story.episode === currentEpisodeNumber.value) ?? stories[0];
+  return stories.find((story) => {
+    return story.episode === currentEpisodeNumber.value;
+  }) ?? stories[0];
 });
 
 const currentIndex = computed(() => {
-  return stories.findIndex((story) => story.episode === currentEpisodeNumber.value);
+  return stories.findIndex((story) => {
+    return story.episode === currentEpisodeNumber.value;
+  });
 });
 
-const hasPrev = computed(() => currentIndex.value > 0);
+const hasPrev = computed(() => {
+  return currentIndex.value > 0;
+});
 
 const hasNext = computed(() => {
   return currentIndex.value >= 0 && currentIndex.value < stories.length - 1;
@@ -193,22 +224,28 @@ function scrollToTop() {
 }
 
 function moveToEpisode(episodeNumber) {
+  router.push({
+    path: "/story",
+    query: {
+      episode: episodeNumber,
+    },
+  });
+
   currentEpisodeNumber.value = episodeNumber;
+
   scrollToTop();
 }
 
 function movePrev() {
   if (!hasPrev.value) return;
 
-  currentEpisodeNumber.value = stories[currentIndex.value - 1].episode;
-  scrollToTop();
+  moveToEpisode(stories[currentIndex.value - 1].episode);
 }
 
 function moveNext() {
   if (!hasNext.value) return;
 
-  currentEpisodeNumber.value = stories[currentIndex.value + 1].episode;
-  scrollToTop();
+  moveToEpisode(stories[currentIndex.value + 1].episode);
 }
 </script>
 
