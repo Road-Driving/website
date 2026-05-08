@@ -1,6 +1,6 @@
 <template>
   <main class="page">
-    <h1>Story</h1>
+    <h1>Bus</h1>
   </main>
 </template>
 
