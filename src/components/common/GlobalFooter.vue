@@ -15,6 +15,13 @@
         <p class="footer-description">
           본 사이트는 ChatGPT와 Vue를 기반으로 제작되었습니다.
         </p>
+
+        <RouterLink
+          to="/admin"
+          class="admin-link"
+        >
+          관리
+        </RouterLink>
       </div>
 
       <div class="footer-clock">
@@ -116,6 +123,23 @@ onUnmounted(() => {
 
   font-size: 12px;
   line-height: 1.7;
+}
+
+.admin-link {
+  display: inline-flex;
+
+  margin-top: 12px;
+
+  color: #4f5663;
+
+  font-size: 11px;
+  text-decoration: none;
+
+  transition: color 0.2s ease;
+}
+
+.admin-link:hover {
+  color: #7aa2ff;
 }
 
 .footer-clock {

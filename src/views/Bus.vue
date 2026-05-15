@@ -9,11 +9,18 @@
         </h1>
 
         <p class="bus-sub-title">
-          실제 버스기사로 향하는 일정과 큰 기록들을 정리합니다.
+          관리자 페이지에 저장된 일정과 큰 기록들을 표시합니다.
         </p>
       </div>
 
       <div class="record-list">
+        <p
+          v-if="formattedRecords.length === 0"
+          class="empty-text"
+        >
+          저장된 기록이 없습니다.
+        </p>
+
         <div
           v-for="record in formattedRecords"
           :key="record.id"
@@ -30,6 +37,20 @@
             <span class="date">
               {{ record.displayDate }}
             </span>
+
+            <span
+              v-if="record.time"
+              class="time"
+            >
+              {{ record.time }}
+            </span>
+
+            <span
+              v-if="record.remainingText"
+              class="remaining"
+            >
+              {{ record.remainingText }}
+            </span>
           </div>
 
           <p class="record-content">
@@ -42,26 +63,89 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
-import { busRecords } from "../data/busRecords.js";
+import {
+  computed,
+  onMounted,
+  onUnmounted,
+  ref,
+} from "vue";
+
+import {
+  ref as dbRef,
+  onValue,
+} from "firebase/database";
+
+import { db } from "../lib/firebase.js";
+
+const records = ref([]);
+const now = ref(new Date());
+
+let timer = null;
+let unsubscribeRecords = null;
+
+onMounted(() => {
+  timer = setInterval(() => {
+    now.value = new Date();
+  }, 1000);
+
+  loadRecords();
+});
+
+onUnmounted(() => {
+  clearInterval(timer);
+
+  if (unsubscribeRecords) {
+    unsubscribeRecords();
+  }
+});
+
+function loadRecords() {
+  const recordsRef = dbRef(db, "busRecords");
+
+  unsubscribeRecords = onValue(recordsRef, (snapshot) => {
+    const data = snapshot.val();
+
+    if (!data) {
+      records.value = [];
+      return;
+    }
+
+    records.value = Object.entries(data).map(([id, value]) => {
+      return {
+        id,
+        ...value,
+      };
+    });
+  });
+}
+
+function isValidDateText(dateText) {
+  return /^\d{4}\/\d{2}\/\d{2}$/.test(dateText);
+}
 
 function toDateOnly(dateText) {
-  const [year, month, day] = dateText.split("-").map(Number);
+  const [year, month, day] = dateText.split("/").map(Number);
 
   return new Date(year, month - 1, day);
 }
 
+function toDateTime(dateText, timeText) {
+  const [year, month, day] = dateText.split("/").map(Number);
+  const safeTime = timeText || "00:00";
+  const [hour, minute] = safeTime.split(":").map(Number);
+
+  return new Date(year, month - 1, day, hour, minute, 0);
+}
+
 function formatDate(dateText) {
-  return dateText.replaceAll("-", ".");
+  return dateText.replaceAll("/", ".");
 }
 
 function getToday() {
-  const now = new Date();
-
   return new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate()
+    now.value.getFullYear(),
+    now.value.getMonth(),
+    now.value.getDate()
   );
 }
 
@@ -76,76 +160,78 @@ function getDiffDays(targetDate) {
   );
 }
 
+function formatRemaining(milliseconds) {
+  const totalMinutes = Math.max(
+    0,
+    Math.ceil(milliseconds / (1000 * 60))
+  );
+
+  const days = Math.floor(totalMinutes / (24 * 60));
+  let rest = totalMinutes % (24 * 60);
+
+  const hours = Math.floor(rest / 60);
+  const minutes = rest % 60;
+
+  if (days > 0) {
+    return `${days}일 ${hours}시간 ${minutes}분 남음`;
+  }
+
+  if (hours > 0) {
+    return `${hours}시간 ${minutes}분 남음`;
+  }
+
+  return `${minutes}분 남음`;
+}
+
 const formattedRecords = computed(() => {
-  return busRecords
-    .map((record, index) => {
-      const targetDate =
-        toDateOnly(record.date);
+  return records.value
+    .filter((record) => {
+      return record.date && isValidDateText(record.date);
+    })
+    .map((record) => {
+      const targetDate = toDateOnly(record.date);
+      const targetDateTime = toDateTime(record.date, record.time);
+      const diffDays = getDiffDays(targetDate);
+      const remainingMilliseconds =
+        targetDateTime.getTime() - now.value.getTime();
 
-      const diffDays =
-        getDiffDays(targetDate);
-
-      // 미래 일정
-      if (diffDays > 0) {
-        return {
-          ...record,
-
-          dday: `D-${diffDays}`,
-
-          displayDate: `${formatDate(record.date)}`,
-
-          group: "future",
-
-          // 먼 미래가 위로
-          sortOrder: -diffDays,
-
-          // 아래에 작성된 데이터가 위로
-          inputOrder: index,
-        };
-      }
-
-      // 오늘 일정
-      if (diffDays === 0) {
-        return {
-          ...record,
-
-          dday: "D-day",
-
-          displayDate: `${formatDate(record.date)}`,
-
-          group: "today",
-
-          sortOrder: 0,
-
-          inputOrder: index,
-        };
-      }
-
-      // 과거 일정
       return {
         ...record,
-
-        dday: "",
-
-        displayDate:
-          formatDate(record.date),
-
-        group: "past",
-
-        // 과거는 아래로
-        sortOrder:
-          Math.abs(diffDays) + 10000,
-
-        inputOrder: index,
+        diffDays,
+        dday:
+          diffDays > 0
+            ? `D-${diffDays}`
+            : diffDays === 0
+              ? "D-day"
+              : "",
+        displayDate: formatDate(record.date),
+        remainingText:
+          remainingMilliseconds > 0
+            ? formatRemaining(remainingMilliseconds)
+            : "",
       };
     })
-
     .sort((a, b) => {
-      if (a.sortOrder !== b.sortOrder) {
-        return a.sortOrder - b.sortOrder;
+      const aFuture = a.diffDays >= 0;
+      const bFuture = b.diffDays >= 0;
+
+      if (aFuture && !bFuture) {
+        return -1;
       }
 
-      return b.inputOrder - a.inputOrder;
+      if (!aFuture && bFuture) {
+        return 1;
+      }
+
+      if (aFuture && bFuture) {
+        if (a.diffDays !== b.diffDays) {
+          return b.diffDays - a.diffDays;
+        }
+
+        return (b.time || "00:00").localeCompare(a.time || "00:00");
+      }
+
+      return b.diffDays - a.diffDays;
     });
 });
 </script>
@@ -185,9 +271,15 @@ const formattedRecords = computed(() => {
   border-top: 1px solid #242a35;
 }
 
+.empty-text {
+  margin: 16px 0 0;
+  color: #7f8794;
+  font-size: 14px;
+}
+
 .record-item {
   display: grid;
-  grid-template-columns: 180px 1fr;
+  grid-template-columns: 260px 1fr;
   gap: 20px;
   padding: 16px 0;
   border-bottom: 1px solid #242a35;
@@ -196,14 +288,18 @@ const formattedRecords = computed(() => {
 .record-date {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   color: #7f8794;
   font-size: 13px;
-  white-space: nowrap;
 }
 
 .date {
   color: #aeb6c4;
+}
+
+.time {
+  color: #7f8794;
 }
 
 .dday {
@@ -212,6 +308,11 @@ const formattedRecords = computed(() => {
   border-radius: 999px;
   color: #7aa2ff;
   font-size: 11px;
+}
+
+.remaining {
+  color: #7aa2ff;
+  font-size: 12px;
 }
 
 .record-content {

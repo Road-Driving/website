@@ -1,12 +1,12 @@
 <template>
   <main class="home">
-    <RecentStories />
+    <CounterRecords />
     <BusRecords />
   </main>
 </template>
 
 <script setup>
-import RecentStories from "../components/home/RecentStories.vue";
+import CounterRecords from "../components/home/CounterRecords.vue";
 import BusRecords from "../components/home/BusRecords.vue";
 </script>
 

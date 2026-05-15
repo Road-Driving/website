@@ -9,7 +9,6 @@
 
       <nav class="site-nav">
         <RouterLink to="/">HOME</RouterLink>
-        <RouterLink to="/story">STORY</RouterLink>
         <RouterLink to="/bus">BUS</RouterLink>
       </nav>
     </header>

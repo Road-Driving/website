@@ -1,33 +1,43 @@
-<!-- src/components/home/BusRecords.vue -->
-
 <template>
   <section class="bus-records">
-    <div class="record-header">
-      <h2 class="record-main-title">
-        나의 버스기사 일정
+    <div class="bus-records-wrap">
+      <h2 class="section-title">
+        다가오는 일정
       </h2>
 
-      <p class="record-sub-title">
-        실제 버스기사로 향하는 일정과 큰 기록들을 정리합니다.
+      <p
+        v-if="homeRecords.length === 0"
+        class="empty-text"
+      >
+        다가오는 일정이 없습니다.
       </p>
-    </div>
 
-    <div class="record-list">
       <div
-        v-for="record in formattedRecords"
-        :key="`${record.date}-${record.content}`"
+        v-for="record in homeRecords"
+        :key="record.id"
         class="record-item"
       >
         <div class="record-date">
-          <span
-            v-if="record.dday"
-            class="dday"
-          >
+          <span class="dday">
             {{ record.dday }}
           </span>
 
           <span class="date">
             {{ record.displayDate }}
+          </span>
+
+          <span
+            v-if="record.time"
+            class="time"
+          >
+            {{ record.time }}
+          </span>
+
+          <span
+            v-if="record.remainingText"
+            class="remaining"
+          >
+            {{ record.remainingText }}
           </span>
         </div>
 
@@ -40,26 +50,89 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
-import { busRecords } from "../../data/busRecords.js";
+import {
+  computed,
+  onMounted,
+  onUnmounted,
+  ref,
+} from "vue";
+
+import {
+  ref as dbRef,
+  onValue,
+} from "firebase/database";
+
+import { db } from "../../lib/firebase.js";
+
+const records = ref([]);
+const now = ref(new Date());
+
+let timer = null;
+let unsubscribeRecords = null;
+
+onMounted(() => {
+  timer = setInterval(() => {
+    now.value = new Date();
+  }, 1000);
+
+  loadRecords();
+});
+
+onUnmounted(() => {
+  clearInterval(timer);
+
+  if (unsubscribeRecords) {
+    unsubscribeRecords();
+  }
+});
+
+function loadRecords() {
+  const recordsRef = dbRef(db, "busRecords");
+
+  unsubscribeRecords = onValue(recordsRef, (snapshot) => {
+    const data = snapshot.val();
+
+    if (!data) {
+      records.value = [];
+      return;
+    }
+
+    records.value = Object.entries(data).map(([id, value]) => {
+      return {
+        id,
+        ...value,
+      };
+    });
+  });
+}
+
+function isValidDateText(dateText) {
+  return /^\d{4}\/\d{2}\/\d{2}$/.test(dateText);
+}
 
 function toDateOnly(dateText) {
-  const [year, month, day] = dateText.split("-").map(Number);
+  const [year, month, day] = dateText.split("/").map(Number);
 
   return new Date(year, month - 1, day);
 }
 
+function toDateTime(dateText, timeText) {
+  const [year, month, day] = dateText.split("/").map(Number);
+  const safeTime = timeText || "00:00";
+  const [hour, minute] = safeTime.split(":").map(Number);
+
+  return new Date(year, month - 1, day, hour, minute, 0);
+}
+
 function formatDate(dateText) {
-  return dateText.replaceAll("-", ".");
+  return dateText.replaceAll("/", ".");
 }
 
 function getToday() {
-  const now = new Date();
-
   return new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate()
+    now.value.getFullYear(),
+    now.value.getMonth(),
+    now.value.getDate()
   );
 }
 
@@ -74,177 +147,140 @@ function getDiffDays(targetDate) {
   );
 }
 
-const formattedRecords = computed(() => {
-  return busRecords
-    .map((record, index) => {
-      const targetDate =
-        toDateOnly(record.date);
+function formatRemaining(milliseconds) {
+  const totalMinutes = Math.max(
+    0,
+    Math.ceil(milliseconds / (1000 * 60))
+  );
 
-      const diffDays =
-        getDiffDays(targetDate);
+  const days = Math.floor(totalMinutes / (24 * 60));
+  let rest = totalMinutes % (24 * 60);
 
-      // 미래 일정
-      if (diffDays > 0) {
-        return {
-          ...record,
+  const hours = Math.floor(rest / 60);
+  const minutes = rest % 60;
 
-          dday: `D-${diffDays}`,
+  if (days > 0) {
+    return `${days}일 ${hours}시간 ${minutes}분 남음`;
+  }
 
-          displayDate:
-            `${formatDate(record.date)}`,
+  if (hours > 0) {
+    return `${hours}시간 ${minutes}분 남음`;
+  }
 
-          sortOrder: -diffDays,
+  return `${minutes}분 남음`;
+}
 
-          inputOrder: index,
-        };
-      }
+const homeRecords = computed(() => {
+  return records.value
+    .filter((record) => {
+      return record.date && isValidDateText(record.date);
+    })
+    .map((record) => {
+      const targetDate = toDateOnly(record.date);
+      const targetDateTime = toDateTime(record.date, record.time);
+      const diffDays = getDiffDays(targetDate);
+      const remainingMilliseconds =
+        targetDateTime.getTime() - now.value.getTime();
 
-      // 오늘 일정
-      if (diffDays === 0) {
-        return {
-          ...record,
-
-          dday: "D-day",
-
-          displayDate:
-            `${formatDate(record.date)}`,
-
-          sortOrder: 0,
-
-          inputOrder: index,
-        };
-      }
-
-      // 과거 일정
       return {
         ...record,
-
-        dday: "",
-
-        displayDate:
-          formatDate(record.date),
-
-        sortOrder:
-          Math.abs(diffDays) + 10000,
-
-        inputOrder: index,
+        diffDays,
+        dday:
+          diffDays === 0
+            ? "D-day"
+            : `D-${diffDays}`,
+        displayDate: formatDate(record.date),
+        remainingText:
+          remainingMilliseconds > 0
+            ? formatRemaining(remainingMilliseconds)
+            : "",
       };
     })
-
+    .filter((record) => {
+      return record.diffDays >= 0;
+    })
     .sort((a, b) => {
-      // 날짜 우선 정렬
-      if (a.sortOrder !== b.sortOrder) {
-        return a.sortOrder - b.sortOrder;
+      if (a.diffDays !== b.diffDays) {
+        return a.diffDays - b.diffDays;
       }
 
-      // 같은 날짜면
-      // 아래에 입력한 데이터가 위로
-      return b.inputOrder - a.inputOrder;
+      return (a.time || "00:00").localeCompare(b.time || "00:00");
     })
+    .slice(0, 5)
+    .sort((a, b) => {
+      if (a.diffDays !== b.diffDays) {
+        return b.diffDays - a.diffDays;
+      }
 
-    // 홈은 상위 5개만
-    .slice(0, 5);
+      return (b.time || "00:00").localeCompare(a.time || "00:00");
+    });
 });
 </script>
 
 <style scoped>
 .bus-records {
-  max-width: 1080px;
+  padding: 24px 20px 10px;
+}
+
+.bus-records-wrap {
+  max-width: 720px;
   margin: 0 auto;
-
-  padding: 10px 24px 6px;
 }
 
-.record-header {
-  margin-bottom: 16px;
-}
-
-.record-main-title {
-  margin: 0;
-
+.section-title {
+  margin: 0 0 16px;
   color: #f2f4f8;
-
-  font-size: clamp(26px, 4vw, 36px);
-  line-height: 1.15;
-  letter-spacing: -0.04em;
+  font-size: 24px;
 }
 
-.record-sub-title {
-  margin: 8px 0 0;
-
-  color: #aeb6c4;
-
-  font-size: 15px;
-  line-height: 1.6;
-}
-
-.record-list {
-  border-top: 1px solid #242a35;
+.empty-text {
+  color: #7f8794;
+  font-size: 14px;
 }
 
 .record-item {
-  display: grid;
-  grid-template-columns: 180px 1fr;
-  gap: 20px;
-
   padding: 16px 0;
+  border-top: 1px solid #242a35;
+}
 
+.record-item:last-child {
   border-bottom: 1px solid #242a35;
 }
 
 .record-date {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-
-  color: #7f8794;
-
+  margin-bottom: 6px;
   font-size: 13px;
-  white-space: nowrap;
+}
+
+.dday {
+  padding: 3px 8px;
+  border: 1px solid #343a46;
+  border-radius: 999px;
+  color: #7aa2ff;
+  font-size: 11px;
 }
 
 .date {
   color: #aeb6c4;
 }
 
-.dday {
-  padding: 3px 8px;
+.time {
+  color: #7f8794;
+}
 
-  border: 1px solid #343a46;
-  border-radius: 999px;
-
+.remaining {
   color: #7aa2ff;
-
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .record-content {
   margin: 0;
-
   color: #d2d7df;
-
   font-size: 15px;
   line-height: 1.65;
-}
-
-@media (max-width: 768px) {
-  .bus-records {
-    padding: 8px 20px 2px;
-  }
-
-  .record-main-title {
-    font-size: 28px;
-  }
-
-  .record-sub-title {
-    font-size: 14px;
-  }
-
-  .record-item {
-    grid-template-columns: 1fr;
-    gap: 6px;
-
-    padding: 14px 0;
-  }
 }
 </style>

@@ -3,6 +3,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import Home from '../views/HomeView.vue'
 import Story from '../views/Story.vue'
 import Bus from '../views/Bus.vue'
+import Admin from '../views/Admin.vue'
 
 const routes = [
   {
@@ -20,6 +21,11 @@ const routes = [
     name: 'Bus',
     component: Bus,
   },
+  {
+  path: '/admin',
+  name: 'Admin',
+  component: Admin,
+  }
 ]
 
 const router = createRouter({
